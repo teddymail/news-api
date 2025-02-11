@@ -5,7 +5,7 @@ on:
     branches: [ "main" ] # 根据你的主分支名称调整（可能是 master）
 
 env:
-  IMAGE_NAME: news-backend # 你的镜像名称
+  IMAGE_NAME: news-api # 你的镜像名称
   REGISTRY: docker.io # 容器注册表地址（默认 Docker Hub）
 
 jobs:
