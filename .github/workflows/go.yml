@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: ["main"] # 根据你的主分支名称调整
+    branches: ["main"]
 
 env:
   REGISTRY: docker.io
@@ -53,12 +53,18 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e  # 遇到错误立即退出
+            PREV_IMAGE=$(docker inspect --format='{{.Image}}' news-api || true)
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest
             docker stop news-api || true
             docker rm news-api || true
-            docker run -d \
-              --name news-api \
-              -p 8099:8099 \
-              -e PORT=8099 \
-              -e DB_DSN=proxy:proxyPass@tcp(proxy.ykcode.top:3306)/news?charset=utf8mb4\&parseTime=True\&loc=Local \
-              ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest
+            if ! docker run -d --name news-api -p 8099:8099 -e PORT=8099 -e DB_DSN=${{ secrets.DB_DSN }} ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest; then
+              echo "部署失败，尝试回滚..."
+              if [ -n "$PREV_IMAGE" ]; then
+                docker run -d --name news-api -p 8099:8099 -e PORT=8099 -e DB_DSN=${{ secrets.DB_DSN }} $PREV_IMAGE
+              else
+                echo "没有可用的回滚镜像"
+                exit 1
+              fi
+            fi
+            docker image prune -f
