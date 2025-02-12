@@ -2,10 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: ["main"]
-
-env:
-  REGISTRY: docker.io
+    branches: ["main"] # 根据你的主分支名称调整
 
 jobs:
   build-and-push:
@@ -26,24 +23,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to Alibaba Cloud Registry
+        run: |
+          docker login --username=${{ secrets.ALIYUN_USERNAME }} --password=${{ secrets.ALIYUN_PASSWORD }} registry.cn-beijing.aliyuncs.com
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/news-api:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build Docker image
+        run: |
+          docker build -t news-api:latest -f ./Dockerfile .
+
+      - name: Tag Docker image
+        run: |
+          docker tag news-api:latest registry.cn-beijing.aliyuncs.com/teddymail/news-api:latest
+          docker tag news-api:latest registry.cn-beijing.aliyuncs.com/teddymail/news-api:${{ github.sha }}
+
+      - name: Push Docker image to Alibaba Cloud
+        run: |
+          docker push registry.cn-beijing.aliyuncs.com/teddymail/news-api:latest
+          docker push registry.cn-beijing.aliyuncs.com/teddymail/news-api:${{ github.sha }}
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.0
@@ -53,19 +49,13 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            set -e  # 遇到错误立即退出
-            PREV_IMAGE=$(docker inspect --format='{{.Image}}' news-api || true)
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest
+            docker login --username=${{ secrets.ALIYUN_USERNAME }} --password=${{ secrets.ALIYUN_PASSWORD }} registry.cn-beijing.aliyuncs.com
+            docker pull registry.cn-beijing.aliyuncs.com/teddymail/news-api:${{ github.sha }}
             docker stop news-api || true
             docker rm news-api || true
-            if ! docker run -d --name news-api -p 8099:8099 -e PORT=8099 -e DB_DSN=${{ secrets.DB_DSN }} ${{ secrets.DOCKERHUB_USERNAME }}/news-api:latest; then
-              echo "部署失败，尝试回滚..."
-              if [ -n "$PREV_IMAGE" ]; then
-                docker run -d --name news-api -p 8099:8099 -e PORT=8099 -e DB_DSN=${{ secrets.DB_DSN }} $PREV_IMAGE
-              else
-                echo "没有可用的回滚镜像"
-                exit 1
-              fi
-            fi
-            docker image prune -f
-            echo "部署完成"
+            docker run -d \
+              --name news-api \
+              -p 8099:8099 \
+              -e PORT=8099 \
+              -e DB_DSN=${{ secrets.DB_DSN }} \
+              registry.cn-beijing.aliyuncs.com/teddymail/news-api:${{ github.sha }}
