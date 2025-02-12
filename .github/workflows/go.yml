@@ -62,5 +62,5 @@ jobs:
               --name news-api \
               -p 8099:8099 \
               -e PORT=8099 \
-              -e DB_DSN=${{ secrets.DB_DSN }} \
+              -e DB_DSN="${{ secrets.DB_DSN }}" \
               registry.cn-beijing.aliyuncs.com/teddymail/news-api:latest
