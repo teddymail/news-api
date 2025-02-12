@@ -68,3 +68,4 @@ jobs:
               fi
             fi
             docker image prune -f
+            echo "部署完成"
