@@ -28,8 +28,9 @@ COPY --from=builder /app/news-backend .
 # 暴露端口
 EXPOSE 8099
 
+# 设置环境变量
 ENV PORT=8099
-ENV DB_DSN=proxy:proxyPass@tcp(localhost:3306)/news?charset=utf8mb4&parseTime=True&loc=Local
+ENV DB_DSN=proxy:proxyPass@tcp(localhost:3306)/news?charset=utf8mb4%26parseTime=True%26loc=Local
 
 # 运行应用
 CMD ["./news-backend"]
